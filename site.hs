@@ -58,15 +58,36 @@ filterByDay :: Day -> [Event] -> [Event]
 filterByDay day events = filter (\event -> (Just . utctDay =<< start event) == Just day) $ filter (isJust . start) events
 
 isNormal event = if category event == Normal then True else False
+isGuerrilla event = if category event == Guerrilla then True else False
+isPermanent event = if category event == Permanent then True else False
 
 showDay :: Day -> String
 showDay day = formatTime defaultTimeLocale "%m月%d日" day
 
+eventCtx :: Event -> Context String
+eventCtx event = constField "description" (description event) <>
+                 constField "pictureName" (pictureName event) <>
+                 constField "title"       (title event)       <>
+                 constField "period"      period              <>
+                 constField "place"       (place event)       <>
+                 defaultContext
+                 where
+                   startStr = case start event of
+                     Just s -> formatTime defaultTimeLocale "%H:%M" s
+                     Nothing -> ""
+                   endStr = case end event of
+                     Just e -> formatTime defaultTimeLocale "%H:%M" e
+                     Nothing -> ""
+                   period = if (startStr == "") && (endStr == "") then "？" else startStr ++ "〜" ++ endStr
+
+eventsCtx :: [Event] -> String -> Context String
+eventsCtx events _title = let items = forM events $ \event -> makeItem "" >>= loadAndApplyTemplate "templates/event.html" (eventCtx event)
+                          in constField "title" _title <> listField "events" defaultContext items <> defaultContext
+
 main :: IO ()
 main = do
   events <- extractEvents "data/table.csv"
-  let
-    days = extractDays . (filter isNormal) $ events
+  let normalDays = extractDays . (filter isNormal) $ events
   hakyll $ do
     match "images/*" $ do
         route   idRoute
@@ -85,7 +106,7 @@ main = do
       compile $ do
         let
           indexCtx =
-            listField "days" defaultContext (mapM (makeItem . showDay) days) <>
+            listField "days" defaultContext (mapM (makeItem . showDay) normalDays) <>
             constField "title" "" <>
             defaultContext
         makeItem ""
@@ -93,84 +114,32 @@ main = do
             >>= loadAndApplyTemplate "templates/default.html" indexCtx
             >>= relativizeUrls
     
-    forM days $ \day -> do
+    forM normalDays $ \day -> do
       create [fromFilePath $ showDay day] $ do
         route   $ setExtension "html"
         compile $ do
           let eventsOfDay = filterByDay day $ filter isNormal events
-              items = forM eventsOfDay $ \event -> do
-                let
-                  startStr = case start event of
-                    Just s -> formatTime defaultTimeLocale "%H:%M" s
-                    Nothing -> ""
-                  endStr = case end event of
-                    Just e -> formatTime defaultTimeLocale "%H:%M" e
-                    Nothing -> ""
-                  eventCtx = constField "description" (description event) <>
-                             constField "pictureName" (pictureName event) <>
-                             constField "title"       (title event)       <>
-                             constField "start"       startStr            <>
-                             constField "end"         endStr              <>
-                             constField "place"       (place event)       <>
-                             defaultContext
-                makeItem "" >>= loadAndApplyTemplate "templates/event.html" eventCtx
-          let dayCtx = constField "title" ((showDay day) ++ "の企画") <>
-                       listField "events" defaultContext items <>
-                       defaultContext
-          makeItem "" >>= loadAndApplyTemplate "templates/day.html" dayCtx
+              dayCtx = eventsCtx eventsOfDay ((showDay day) ++ "の企画")
+          makeItem "" >>= loadAndApplyTemplate "templates/events.html" dayCtx
                       >>= loadAndApplyTemplate "templates/default.html" dayCtx
                       >>= relativizeUrls
 
+    create ["guerrilla.html"] $ do
+      route  idRoute
+      compile $ do
+        let guerrillaEvents = filter isGuerrilla events
+            guerrillaCtx = eventsCtx guerrillaEvents "ゲリラ企画"
+        makeItem "" >>= loadAndApplyTemplate "templates/events.html" guerrillaCtx
+                    >>= loadAndApplyTemplate "templates/default.html" guerrillaCtx
+                    >>= relativizeUrls
+
+    create ["permanent.html"] $ do
+      route  idRoute
+      compile $ do
+        let permanentEvents = filter isPermanent events
+            permanentCtx = eventsCtx permanentEvents "常設企画"
+        makeItem "" >>= loadAndApplyTemplate "templates/events.html" permanentCtx
+                    >>= loadAndApplyTemplate "templates/default.html" permanentCtx
+                    >>= relativizeUrls
+
     match "templates/*" $ compile templateBodyCompiler
-
-{-
-    match (fromList ["about.rst", "contact.markdown"]) $ do
-        route   $ setExtension "html"
-        compile $ pandocCompiler
-            >>= loadAndApplyTemplate "templates/default.html" defaultContext
-            >>= relativizeUrls
-
-    match "posts/*" $ do
-        route $ setExtension "html"
-        compile $ pandocCompiler
-            >>= loadAndApplyTemplate "templates/post.html"    postCtx
-            >>= loadAndApplyTemplate "templates/default.html" postCtx
-            >>= relativizeUrls
-
-    create ["archive.html"] $ do
-        route idRoute
-        compile $ do
-            posts <- recentFirst =<< loadAll "posts/*"
-            let archiveCtx =
-                    listField "posts" postCtx (return posts) `mappend`
-                    constField "title" "Archives"            `mappend`
-                    defaultContext
-
-            makeItem ""
-                >>= loadAndApplyTemplate "templates/archive.html" archiveCtx
-                >>= loadAndApplyTemplate "templates/default.html" archiveCtx
-                >>= relativizeUrls
-
-
-    match "index.html" $ do
-        route idRoute
-        compile $ do
-            posts <- recentFirst =<< loadAll "posts/*"
-            let indexCtx =
-                    listField "posts" postCtx (return posts) `mappend`
-                    constField "title" "Home"                `mappend`
-                    defaultContext
-
-            getResourceBody
-                >>= applyAsTemplate indexCtx
-                >>= loadAndApplyTemplate "templates/default.html" indexCtx
-                >>= relativizeUrls
-
-
-
---------------------------------------------------------------------------------
-postCtx :: Context String
-postCtx =
-    dateField "date" "%B %e, %Y" `mappend`
-    defaultContext
--}
