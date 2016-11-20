@@ -59,6 +59,9 @@ filterByDay day events = filter (\event -> (Just . utctDay =<< start event) == J
 
 isNormal event = if category event == Normal then True else False
 
+showDay :: Day -> String
+showDay day = formatTime defaultTimeLocale "%m月%d日" day
+
 main :: IO ()
 main = do
   events <- extractEvents "data/table.csv"
@@ -82,8 +85,8 @@ main = do
       compile $ do
         let
           indexCtx =
-            listField "days" defaultContext (mapM (makeItem . show) days) `mappend`
-            constField "title" "index" `mappend`
+            listField "days" defaultContext (mapM (makeItem . showDay) days) <>
+            constField "title" "" <>
             defaultContext
         makeItem ""
             >>= loadAndApplyTemplate "templates/index.html" indexCtx
@@ -91,20 +94,32 @@ main = do
             >>= relativizeUrls
     
     forM days $ \day -> do
-      create [fromFilePath $ show day] $ do
+      create [fromFilePath $ showDay day] $ do
         route   $ setExtension "html"
         compile $ do
           let eventsOfDay = filterByDay day $ filter isNormal events
               items = forM eventsOfDay $ \event -> do
                 let
+                  startStr = case start event of
+                    Just s -> formatTime defaultTimeLocale "%H:%M" s
+                    Nothing -> ""
+                  endStr = case end event of
+                    Just e -> formatTime defaultTimeLocale "%H:%M" e
+                    Nothing -> ""
                   eventCtx = constField "description" (description event) <>
                              constField "pictureName" (pictureName event) <>
+                             constField "title"       (title event)       <>
+                             constField "start"       startStr            <>
+                             constField "end"         endStr              <>
+                             constField "place"       (place event)       <>
                              defaultContext
                 makeItem "" >>= loadAndApplyTemplate "templates/event.html" eventCtx
-          let dayCtx = constField "day" (show day) <>
+          let dayCtx = constField "title" ((showDay day) ++ "の企画") <>
                        listField "events" defaultContext items <>
                        defaultContext
           makeItem "" >>= loadAndApplyTemplate "templates/day.html" dayCtx
+                      >>= loadAndApplyTemplate "templates/default.html" dayCtx
+                      >>= relativizeUrls
 
     match "templates/*" $ compile templateBodyCompiler
 

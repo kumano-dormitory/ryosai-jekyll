@@ -49,6 +49,11 @@ h2 {
     font-size: 20px;
 }
 
+img.event-image {
+    border: 2px #000000 solid;
+    width: 600px;
+}
+
 div.info {
     color: #555;
     font-size: 14px;
