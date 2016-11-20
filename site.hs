@@ -1,7 +1,8 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-import           Data.Monoid (mappend)
+import           Data.Monoid (mappend, (<>))
+import           Control.Monad (forM)
 import           Hakyll
 import qualified Data.ByteString.Lazy as BL
 import           Control.Applicative
@@ -9,9 +10,13 @@ import           Data.Csv
 import qualified Data.Vector as V
 import           Data.Time.Clock
 import           Data.Time.Format
+import           Data.Time.Calendar
+import           Data.Maybe
+import           Data.List
+import           Debug.Trace (trace)
 --------------------------------------------------------------------------------
 
-data EventCategory = Normal | Permanent | Guerrilla deriving (Show)
+data EventCategory = Normal | Permanent | Guerrilla deriving (Show, Eq)
 
 data Event = Event
   { category :: !EventCategory
@@ -39,19 +44,32 @@ instance FromNamedRecord Event where
         "1" -> Permanent
         "2" -> Guerrilla
 
-extractDates :: String -> IO [Maybe UTCTime]
-extractDates filepath = do
+extractEvents :: String -> IO [Event]
+extractEvents filepath = do
   csvData <- BL.readFile filepath
-  let retval = V.toList $ case decodeByName csvData of
+  return $ V.toList $ case decodeByName csvData of
                             Left err -> error err
-                            Right (_, vectors) -> V.map (\ r -> start r ) vectors
-  return retval
+                            Right (_, vector) -> vector
+
+extractDays :: [Event] -> [Day]
+extractDays events = sort . nub $ map (\(Just time) -> utctDay time) $ filter isJust $ map (\event -> start event) events 
+
+filterByDay :: Day -> [Event] -> [Event]
+filterByDay day events = filter (\event -> (Just . utctDay =<< start event) == Just day) $ filter (isJust . start) events
+
+isNormal event = if category event == Normal then True else False
 
 main :: IO ()
 main = do
-  dates <- extractDates "data/table.csv"
+  events <- extractEvents "data/table.csv"
+  let
+    days = extractDays . (filter isNormal) $ events
   hakyll $ do
     match "images/*" $ do
+        route   idRoute
+        compile copyFileCompiler
+
+    match "images/picture/*" $ do
         route   idRoute
         compile copyFileCompiler
 
@@ -60,11 +78,36 @@ main = do
         compile compressCssCompiler
 
     create ["index.html"] $ do
-      rounte idRoute
+      route idRoute
       compile $ do
-        let indexCtx =
-          listField "dates" defaultContext (return dates) `mappend`
-          defaultContext
+        let
+          indexCtx =
+            listField "days" defaultContext (mapM (makeItem . show) days) `mappend`
+            constField "title" "index" `mappend`
+            defaultContext
+        makeItem ""
+            >>= loadAndApplyTemplate "templates/index.html" indexCtx
+            >>= loadAndApplyTemplate "templates/default.html" indexCtx
+            >>= relativizeUrls
+    
+    forM days $ \day -> do
+      create [fromFilePath $ show day] $ do
+        route   $ setExtension "html"
+        compile $ do
+          let eventsOfDay = filterByDay day $ filter isNormal events
+              items = forM eventsOfDay $ \event -> do
+                let
+                  eventCtx = constField "description" (description event) <>
+                             constField "pictureName" (pictureName event) <>
+                             defaultContext
+                makeItem "" >>= loadAndApplyTemplate "templates/event.html" eventCtx
+          let dayCtx = constField "day" (show day) <>
+                       listField "events" defaultContext items <>
+                       defaultContext
+          makeItem "" >>= loadAndApplyTemplate "templates/day.html" dayCtx
+
+    match "templates/*" $ compile templateBodyCompiler
+
 {-
     match (fromList ["about.rst", "contact.markdown"]) $ do
         route   $ setExtension "html"
@@ -108,7 +151,6 @@ main = do
                 >>= loadAndApplyTemplate "templates/default.html" indexCtx
                 >>= relativizeUrls
 
-    match "templates/*" $ compile templateBodyCompiler
 
 
 --------------------------------------------------------------------------------
