@@ -70,5 +70,6 @@ div.info {
     font-style: italic;
 }
 iframe {
-    width: 100%;
+    width: 600px;
+    height: 450px;
 }
