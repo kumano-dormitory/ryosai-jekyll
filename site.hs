@@ -142,4 +142,15 @@ main = do
                     >>= loadAndApplyTemplate "templates/default.html" permanentCtx
                     >>= relativizeUrls
 
+    match "contact.html" $ do
+      route   $ idRoute
+      compile $ pandocCompiler 
+        >>= loadAndApplyTemplate "templates/default.html" defaultContext
+
+    match "access.html" $ do
+      route   $ idRoute
+      compile $ pandocCompiler 
+        >>= loadAndApplyTemplate "templates/default.html" defaultContext
+        >>= relativizeUrls
+
     match "templates/*" $ compile templateBodyCompiler
