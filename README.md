@@ -1,0 +1,1 @@
+# kumano-dormitory.github.io
