@@ -146,6 +146,7 @@ main = do
       route   $ idRoute
       compile $ pandocCompiler 
         >>= loadAndApplyTemplate "templates/default.html" defaultContext
+        >>= relativizeUrls
 
     match "access.html" $ do
       route   $ idRoute
