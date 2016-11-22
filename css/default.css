@@ -69,7 +69,22 @@ div.info {
     font-size: 14px;
     font-style: italic;
 }
+
+p.foreword {
+    margin-bottom: 0px;
+    margin-top: 0px;
+    text-indent: 1em;
+    font-family: "Times New Roman", "游明朝", YuMincho, "ヒラギノ明朝 ProN W3", "Hiragino Mincho ProN", "メイリオ", Meiryo, serif;
+}
+
+p#author {
+    margin-top: 10px;
+    text-align: right;
+}
+
 iframe {
-    width: 600px;
+    padding: 0;
+    margin: 0 auto 0 auto;
+    width: 100%;
     height: 450px;
 }

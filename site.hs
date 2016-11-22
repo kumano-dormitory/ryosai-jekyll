@@ -101,16 +101,16 @@ main = do
         route   idRoute
         compile compressCssCompiler
 
-    create ["index.html"] $ do
+    create ["events.html"] $ do
       route idRoute
       compile $ do
         let
           indexCtx =
             listField "days" defaultContext (mapM (makeItem . showDay) normalDays) <>
-            constField "title" "" <>
+            constField "title" "企画一覧" <>
             defaultContext
         makeItem ""
-            >>= loadAndApplyTemplate "templates/index.html" indexCtx
+            >>= loadAndApplyTemplate "templates/events_index.html" indexCtx
             >>= loadAndApplyTemplate "templates/default.html" indexCtx
             >>= relativizeUrls
     
@@ -144,13 +144,25 @@ main = do
 
     match "contact.html" $ do
       route   $ idRoute
-      compile $ pandocCompiler 
+      compile $ getResourceBody
         >>= loadAndApplyTemplate "templates/default.html" defaultContext
         >>= relativizeUrls
 
     match "access.html" $ do
       route   $ idRoute
-      compile $ pandocCompiler 
+      compile $ getResourceBody
+        >>= loadAndApplyTemplate "templates/default.html" defaultContext
+        >>= relativizeUrls
+
+    match "index.html" $ do
+      route   $ idRoute
+      compile $ getResourceBody
+        >>= loadAndApplyTemplate "templates/default.html" defaultContext
+        >>= relativizeUrls
+
+    match "contrib.html" $ do
+      route   $ idRoute
+      compile $ getResourceBody
         >>= loadAndApplyTemplate "templates/default.html" defaultContext
         >>= relativizeUrls
 
